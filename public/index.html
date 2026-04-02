@@ -1,0 +1,519 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>📦 Barcode Scanner — Dashboard</title>
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.3.0/exceljs.min.js"></script>
+  <style>
+    *{box-sizing:border-box;margin:0;padding:0}
+    body{background:#0f1117;color:#e8eaf0;font-family:'Courier New',monospace;min-height:100vh}
+
+    .header{background:#1a1d27;border-bottom:1px solid #2a2d3e;padding:14px 24px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:100}
+    .logo{display:flex;align-items:center;gap:10px}
+    .logo-icon{width:36px;height:36px;border-radius:8px;background:#00d4aa;display:flex;align-items:center;justify-content:center;font-size:18px}
+    .logo-title{font-size:14px;font-weight:700;letter-spacing:1px}
+    .logo-sub{font-size:10px;color:#6b7080;margin-top:2px}
+    .hbtns{display:flex;gap:8px;align-items:center}
+    .btn{padding:7px 16px;border-radius:6px;font-family:inherit;font-size:12px;cursor:pointer;font-weight:700;border:none;transition:opacity .2s}
+    .btn:hover{opacity:.8}
+    .btn-reset{border:1px solid #2a2d3e!important;background:transparent;color:#ffa502}
+    .btn-export{background:#00d4aa;color:#0f1117}
+    .lang-sel{padding:6px 10px;border-radius:6px;border:1px solid #2a2d3e;background:#1a1d27;color:#e8eaf0;font-size:11px;font-family:inherit;cursor:pointer}
+    .voice-cb{display:flex;align-items:center;gap:5px;font-size:11px;color:#6b7080;cursor:pointer}
+    .voice-cb input{accent-color:#00d4aa;cursor:pointer}
+
+    /* QR panel */
+    .qr-panel{background:#1a1d27;border:1px solid #2a2d3e;border-radius:12px;padding:16px 20px;margin:24px 24px 0;display:flex;align-items:center;gap:20px}
+    .qr-box{width:90px;height:90px;background:#fff;border-radius:8px;display:flex;align-items:center;justify-content:center;flex-shrink:0;overflow:hidden}
+    .qr-box img{width:90px;height:90px}
+    .qr-info h3{font-size:13px;font-weight:700;margin-bottom:6px}
+    .qr-url{color:#00d4aa;font-size:13px;letter-spacing:1px;margin-bottom:4px}
+    .qr-sub{font-size:11px;color:#6b7080}
+    .qr-dot{display:inline-block;width:7px;height:7px;border-radius:50%;background:#00d4aa;margin-right:5px;animation:pulse 1.5s infinite}
+    @keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
+
+    .main{padding:20px 24px;max-width:1100px;margin:0 auto}
+
+    /* Upload */
+    .upload-zone{border:2px dashed #2a2d3e;border-radius:14px;padding:50px 30px;text-align:center;transition:border-color .2s}
+    .upload-zone:hover{border-color:#00d4aa44}
+    .upload-btn-label{display:inline-block;padding:12px 28px;border-radius:8px;background:#00d4aa;color:#0f1117;font-size:13px;font-weight:700;cursor:pointer;letter-spacing:1px}
+
+    /* Stats */
+    .stats{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:14px}
+    .stat{background:#1a1d27;border-radius:10px;padding:12px 16px;border:1px solid #2a2d3e}
+    .stat-val{font-size:28px;font-weight:700}
+    .stat-lbl{font-size:10px;color:#6b7080;margin-top:2px}
+    .prog-bg{background:#1a1d27;border-radius:6px;height:7px;margin-bottom:14px;overflow:hidden;border:1px solid #2a2d3e}
+    .prog-fill{height:100%;background:#00d4aa;border-radius:6px;transition:width .4s}
+
+    /* Complete banner */
+    .done-banner{display:none;background:#00d4aa18;border:1px solid #00d4aa;border-radius:10px;padding:14px 18px;margin-bottom:14px;text-align:center}
+    .done-banner .di{font-size:28px;margin-bottom:4px}
+    .done-banner .dt{color:#00d4aa;font-size:15px;font-weight:700}
+
+    /* Col select */
+    .col-row{display:flex;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap}
+    .col-sel{padding:7px 12px;border-radius:6px;border:1px solid #2a2d3e;background:#1a1d27;color:#e8eaf0;font-size:12px;font-family:inherit;cursor:pointer}
+
+    /* Last scan */
+    .last-scan{background:#1a1d27;border:2px solid #2a2d3e;border-radius:10px;padding:12px 16px;margin-bottom:14px;display:flex;align-items:center;gap:12px;transition:border-color .2s,background .2s;min-height:56px}
+    .ls-icon{font-size:22px}
+    .ls-code{font-size:16px;letter-spacing:2px;color:#00d4aa;font-weight:700}
+    .ls-status{font-size:12px;margin-top:2px}
+
+    /* Filter */
+    .frow{display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap}
+    .search{flex:1;min-width:160px;padding:7px 12px;border-radius:6px;border:1px solid #2a2d3e;background:#1a1d27;color:#e8eaf0;font-size:12px;font-family:inherit;outline:none}
+    .fbtn{padding:7px 14px;border-radius:6px;border:1px solid #2a2d3e;background:transparent;color:#6b7080;font-size:11px;cursor:pointer;font-family:inherit;transition:all .2s}
+    .fbtn.active{border-color:#00d4aa;background:#00d4aa22;color:#00d4aa}
+
+    /* Table */
+    .tbl-wrap{background:#1a1d27;border-radius:10px;border:1px solid #2a2d3e;overflow:hidden}
+    .tbl-head{display:flex;padding:9px 14px;border-bottom:1px solid #2a2d3e;font-size:10px;color:#6b7080;letter-spacing:1px;background:#13161f}
+    .tbl-body{max-height:420px;overflow-y:auto}
+    .trow{display:flex;padding:10px 14px;border-bottom:1px solid #1e2130;font-size:12px;align-items:center;transition:background .3s}
+    .trow.confirmed{background:#00d4aa0d}
+    .trow.just-confirmed{animation:flashGreen .8s ease}
+    @keyframes flashGreen{0%{background:#00d4aa33}100%{background:#00d4aa0d}}
+    .c-no{width:44px;color:#6b7080;font-size:10px;flex-shrink:0}
+    .c-data{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding-right:8px}
+    .c-bc{flex:1;color:#00d4aa;font-weight:600;letter-spacing:1px}
+    .c-st{width:100px;text-align:center;flex-shrink:0}
+    .badge{display:inline-block;padding:2px 9px;border-radius:20px;font-size:10px;font-weight:700}
+    .b-ok{background:#00d4aa22;color:#00d4aa}
+    .b-pending{background:#ffffff08;color:#6b7080;font-weight:400}
+    .empty{padding:40px;text-align:center;color:#6b7080;font-size:12px}
+
+    .toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);padding:10px 22px;border-radius:8px;font-size:12px;font-weight:700;z-index:999;opacity:0;transition:opacity .3s;pointer-events:none;white-space:nowrap}
+    .toast.show{opacity:1}
+    .toast.ok{background:#00d4aa;color:#0f1117}
+    .toast.err{background:#ff4757;color:#fff}
+    .toast.warn{background:#ffa502;color:#0f1117}
+    .hidden{display:none}
+  </style>
+</head>
+<body>
+
+<div class="header">
+  <div class="logo">
+    <div class="logo-icon">📦</div>
+    <div>
+      <div class="logo-title">BARCODE SCANNER</div>
+      <div class="logo-sub">💻 Computer Dashboard</div>
+    </div>
+  </div>
+  <div class="hbtns hidden" id="hbtns">
+    <label class="voice-cb"><input type="checkbox" id="voiceCb" checked onchange="toggleVoice()"/>🔊</label>
+    <select id="langSel" class="lang-sel" onchange="onLangChange()">
+      <option value="en">🇺🇸 English</option>
+      <option value="zh">🇨🇳 中文</option>
+      <option value="km" selected>🇰🇭 ខ្មែរ</option>
+    </select>
+    <label class="btn" style="background:#2a2d3e;color:#e8eaf0;cursor:pointer;">
+      📂 Change File
+      <input type="file" id="fileInputHeader" accept=".xlsx,.xls" style="display:none" onchange="uploadFile(event)"/>
+    </label>
+    <button class="btn btn-reset" onclick="resetAll()">重置 RESET</button>
+    <button class="btn btn-export" onclick="exportExcel()">⬇ 导出 EXPORT</button>
+  </div>
+</div>
+
+<!-- QR Panel -->
+<div class="qr-panel" id="qrPanel">
+  <div class="qr-box" id="qrBox"><span style="color:#6b7080;font-size:10px;text-align:center">Loading...</span></div>
+  <div class="qr-info">
+    <h3><span class="qr-dot"></span>Phone Scanner URL</h3>
+    <div class="qr-url" id="scannerUrl">Loading...</div>
+    <div class="qr-sub">Open this URL on your phone browser (same WiFi)<br/>或扫描二维码 / ឬស្កែន QR code</div>
+  </div>
+</div>
+
+<div class="main">
+
+  <!-- Upload -->
+  <div id="uploadZone" class="upload-zone" style="margin-top:20px">
+    <div style="font-size:44px;margin-bottom:12px">📊</div>
+    <div style="font-size:16px;font-weight:600;margin-bottom:6px">Upload Excel File</div>
+    <div style="color:#6b7080;font-size:12px;margin-bottom:22px">Upload from computer — phone will scan automatically</div>
+    <label>
+      <span class="upload-btn-label">选择文件 CHOOSE FILE</span>
+      <input type="file" id="fileInput" accept=".xlsx,.xls" style="display:none" onchange="uploadFile(event)"/>
+    </label>
+  </div>
+
+  <!-- Scanner screen -->
+  <div id="scanScreen" class="hidden">
+
+    <div class="col-row">
+      <span style="font-size:11px;color:#6b7080">BARCODE COLUMN:</span>
+      <select class="col-sel" id="colSel" onchange="changeCol()"></select>
+    </div>
+
+    <div class="done-banner" id="doneBanner">
+      <div class="di">🎉</div>
+      <div class="dt">ALL DONE — 全部完成 — រួចរាល់ហើយ!</div>
+      <div style="color:#6b7080;font-size:11px;margin-top:4px">Click EXPORT to download your Excel</div>
+    </div>
+
+    <div class="stats">
+      <div class="stat"><div class="stat-val" id="stTotal" style="color:#e8eaf0">0</div><div class="stat-lbl">TOTAL 总计</div></div>
+      <div class="stat"><div class="stat-val" id="stConf" style="color:#00d4aa">0</div><div class="stat-lbl">已确认 CONFIRMED</div></div>
+      <div class="stat"><div class="stat-val" id="stPend" style="color:#ffa502">0</div><div class="stat-lbl">待扫 PENDING</div></div>
+    </div>
+
+    <div class="prog-bg"><div class="prog-fill" id="progFill" style="width:0%"></div></div>
+
+    <!-- Last scan result -->
+    <div class="last-scan" id="lastScan">
+      <span class="ls-icon">📡</span>
+      <div>
+        <div class="ls-code" id="lsCode" style="color:#3a3d50">Waiting for phone scan...</div>
+        <div class="ls-status" id="lsStatus" style="color:#6b7080">Point your phone camera at a barcode</div>
+      </div>
+    </div>
+
+    <!-- Manual input — for missing digits or gun scanner -->
+    <div style="background:#1a1d27;border:1px solid #2a2d3e;border-radius:10px;padding:12px 16px;margin-bottom:14px;">
+      <div style="font-size:10px;color:#6b7080;letter-spacing:1px;margin-bottom:8px;">⌨ MANUAL / SCANNER GUN INPUT — auto-confirms when scanner stops typing</div>
+      <div style="display:flex;gap:8px;align-items:center;">
+        <input
+          type="text" id="manualInput"
+          placeholder="Type barcode or use scanner gun here..."
+          autocomplete="off"
+          style="flex:1;padding:10px 14px;border-radius:6px;border:1px solid #2a2d3e;background:#0f1117;color:#00d4aa;font-size:15px;font-family:inherit;outline:none;letter-spacing:2px;"
+          onkeydown="if(event.key==='Enter'){ clearTimeout(scanDebounce); sendManual(); }"
+          oninput="autoScan()"
+        />
+        <button onclick="sendManual()" style="padding:10px 18px;border-radius:6px;background:#00d4aa;color:#0f1117;border:none;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;white-space:nowrap;">
+          CONFIRM ✓
+        </button>
+        <div id="scanCountdown" style="font-size:11px;color:#6b7080;min-width:60px;text-align:center;"></div>
+      </div>
+    </div>
+
+    <!-- Filter -->
+    <div class="frow">
+      <input class="search" id="srch" placeholder="Search..." oninput="renderTable()"/>
+      <button class="fbtn active" id="fAll"  onclick="setFilter('all')">ALL 全部</button>
+      <button class="fbtn" id="fConf"        onclick="setFilter('confirmed')">✓ 已确认</button>
+      <button class="fbtn" id="fPend"        onclick="setFilter('pending')">○ 待扫</button>
+    </div>
+
+    <div class="tbl-wrap">
+      <div class="tbl-head" id="tblHead"></div>
+      <div class="tbl-body" id="tblBody"></div>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ── State ──────────────────────────────────────────────
+const socket = io();
+let items = [], columns = [], barcodeCol = '';
+let filter = 'all', voices = [], voiceOn = true;
+let flashTimer, toastTimer;
+
+// ── QR Code (using free API) ───────────────────────────
+fetch('/state').then(r => r.json()).then(() => {
+  const url = `${location.protocol}//${location.hostname}:${location.port}/scanner`;
+  document.getElementById('scannerUrl').textContent = url;
+  document.getElementById('qrBox').innerHTML =
+    `<img src="https://api.qrserver.com/v1/create-qr-code/?size=90x90&data=${encodeURIComponent(url)}" alt="QR"/>`;
+});
+
+// ── Socket events ──────────────────────────────────────
+socket.on('state', d => {
+  if (d.items && d.items.length) loadData(d.items, d.columns, d.barcodeCol);
+});
+socket.on('data-loaded', d => {
+  loadData(d.items, d.columns, d.barcodeCol);
+  showToast('✓ ' + d.items.length + ' items loaded!', 'ok');
+  speak('fileLoaded');
+});
+socket.on('scan-result', d => handleScanResult(d));
+socket.on('item-confirmed', d => {
+  const idx = items.findIndex(i => i._id === d.id);
+  if (idx !== -1) {
+    items[idx]._confirmed = true;
+    updateStats();
+    renderTable(d.id); // pass id to flash that row
+  }
+});
+socket.on('reset-all', () => {
+  items = items.map(i => ({...i, _confirmed: false}));
+  updateStats(); renderTable();
+  showToast('Reset!', 'warn');
+});
+socket.on('col-changed', d => {
+  barcodeCol = d.barcodeCol;
+  document.getElementById('colSel').value = barcodeCol;
+  renderTable();
+});
+
+// ── Load data ──────────────────────────────────────────
+function loadData(newItems, newCols, newBc) {
+  items = newItems; columns = newCols; barcodeCol = newBc;
+  const sel = document.getElementById('colSel');
+  sel.innerHTML = '';
+  columns.forEach(c => {
+    const o = document.createElement('option');
+    o.value = c; o.textContent = c;
+    if (c === barcodeCol) o.selected = true;
+    sel.appendChild(o);
+  });
+  document.getElementById('uploadZone').classList.add('hidden');
+  document.getElementById('scanScreen').classList.remove('hidden');
+  document.getElementById('hbtns').classList.remove('hidden');
+  buildHead(); updateStats(); renderTable();
+}
+
+// ── Manual input ───────────────────────────────────────
+let scanDebounce = null;
+
+function autoScan() {
+  const inp = document.getElementById('manualInput');
+  const countdown = document.getElementById('scanCountdown');
+  if (!inp.value.trim()) { countdown.textContent = ''; return; }
+
+  countdown.textContent = '⏳ scanning...';
+  clearTimeout(scanDebounce);
+
+  // Auto-confirm after 200ms of no typing (scanner gun fires all at once)
+  scanDebounce = setTimeout(() => {
+    countdown.textContent = '';
+    sendManual();
+  }, 200);
+}
+
+function sendManual() {
+  const inp  = document.getElementById('manualInput');
+  const code = inp.value.trim();
+  if (!code) return;
+  inp.value = '';
+  document.getElementById('scanCountdown').textContent = '';
+  socket.emit('scan', code);
+  inp.focus();
+}
+
+// ── Upload ──────────────────────────────────────────────
+async function uploadFile(e) {
+  const file = e.target.files[0]; if (!file) return;
+  const fd = new FormData(); fd.append('file', file);
+  const res = await fetch('/upload', { method: 'POST', body: fd });
+  const d = await res.json();
+  if (!res.ok) return showToast('Error: ' + d.error, 'err');
+}
+
+function changeCol() {
+  const col = document.getElementById('colSel').value;
+  fetch('/set-col', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({col}) });
+}
+
+async function resetAll() {
+  if (!confirm('Reset all? / 重置全部?')) return;
+  await fetch('/reset', { method: 'POST' });
+  speak('reset');
+}
+
+// ── Scan result ────────────────────────────────────────
+function handleScanResult(d) {
+  const ls   = document.getElementById('lastScan');
+  const code = document.getElementById('lsCode');
+  const stat = document.getElementById('lsStatus');
+
+  code.textContent = d.code;
+
+  if (d.confirmed) {
+    ls.style.borderColor = '#00d4aa'; ls.style.background = '#00d4aa18';
+    code.style.color = '#00d4aa';
+    stat.innerHTML = `<span style="color:#00d4aa">✓ 已确认 — Confirmed — បានបញ្ជាក់</span>`;
+    speak('confirmed');
+  } else if (d.duplicate) {
+    ls.style.borderColor = '#ffa502'; ls.style.background = '#ffa50218';
+    code.style.color = '#ffa502';
+    stat.innerHTML = `<span style="color:#ffa502">⚠ Already scanned / 重复扫描 / បានស្កែនរួចហើយ</span>`;
+    speak('duplicate');
+  } else {
+    ls.style.borderColor = '#ff4757'; ls.style.background = '#ff475718';
+    code.style.color = '#ff4757';
+    let sugHtml = d.suggestions?.length
+      ? ' — Did you mean: ' + d.suggestions.join(', ')
+      : '';
+    stat.innerHTML = `<span style="color:#ff4757">✗ Not found / 未找到 / រកមិនឃើញ${sugHtml}</span>`;
+    speak('notFound');
+  }
+
+  if (flashTimer) clearTimeout(flashTimer);
+  flashTimer = setTimeout(() => {
+    ls.style.borderColor = '#2a2d3e'; ls.style.background = 'transparent';
+  }, 1200);
+}
+
+// ── Table ──────────────────────────────────────────────
+function buildHead() {
+  const dc = columns.filter(c => c !== barcodeCol).slice(0, 3);
+  let h = '<div class="c-no">#</div>';
+  dc.forEach(c => h += `<div class="c-data">${c.toUpperCase()}</div>`);
+  h += `<div class="c-bc">${barcodeCol.toUpperCase()}</div>`;
+  h += '<div class="c-st">STATUS</div>';
+  document.getElementById('tblHead').innerHTML = h;
+}
+
+function renderTable(flashId) {
+  const srch = document.getElementById('srch').value.toLowerCase();
+  const dc   = columns.filter(c => c !== barcodeCol).slice(0, 3);
+  const list = items.filter(item => {
+    const ms = !srch || Object.values(item).some(v => String(v).toLowerCase().includes(srch));
+    const mf = filter === 'all' || (filter === 'confirmed' && item._confirmed) || (filter === 'pending' && !item._confirmed);
+    return ms && mf;
+  });
+  if (!list.length) {
+    document.getElementById('tblBody').innerHTML = '<div class="empty">No items</div>'; return;
+  }
+  document.getElementById('tblBody').innerHTML = list.map((item, i) => {
+    let c = `<div class="c-no">${i+1}</div>`;
+    dc.forEach(col => c += `<div class="c-data" title="${item[col]}">${item[col]}</div>`);
+    c += `<div class="c-bc">${item[barcodeCol]}</div>`;
+    c += `<div class="c-st">${item._confirmed
+      ? '<span class="badge b-ok">已确认 ✓</span>'
+      : '<span class="badge b-pending">待扫</span>'}</div>`;
+    const flash = flashId !== undefined && item._id === flashId ? ' just-confirmed' : '';
+    return `<div class="trow${item._confirmed ? ' confirmed' : ''}${flash}">${c}</div>`;
+  }).join('');
+}
+
+function updateStats() {
+  const conf = items.filter(i => i._confirmed).length;
+  const pend = items.length - conf;
+  const pct  = items.length ? (conf / items.length * 100) : 0;
+  document.getElementById('stTotal').textContent = items.length;
+  document.getElementById('stConf').textContent  = conf;
+  document.getElementById('stPend').textContent  = pend;
+  document.getElementById('progFill').style.width = pct + '%';
+  const banner = document.getElementById('doneBanner');
+  if (conf === items.length && items.length > 0) {
+    banner.style.display = 'block';
+    speak('allDone');
+  } else {
+    banner.style.display = 'none';
+  }
+}
+
+function setFilter(f) {
+  filter = f;
+  ['All','Conf','Pend'].forEach(n => document.getElementById('f'+n).classList.remove('active'));
+  document.getElementById('f' + f.charAt(0).toUpperCase() + f.slice(1).slice(0,3)).classList.add('active');
+  renderTable();
+}
+
+// ── Export (ExcelJS) ───────────────────────────────────
+async function exportExcel() {
+  if (!items.length) return showToast('No data!', 'err');
+  showToast('⏳ Exporting...', 'ok', 8000);
+  const wb = new ExcelJS.Workbook();
+  const ws = wb.addWorksheet('扫码结果');
+  const exportCols = [...columns, '状态 Status'];
+  ws.columns = exportCols.map(c => ({ header: c, key: c, width: 20 }));
+  ws.getRow(1).eachCell(cell => {
+    cell.fill = { type:'pattern', pattern:'solid', fgColor:{argb:'FF1A1D27'} };
+    cell.font = { bold:true, color:{argb:'FFE8EAF0'}, size:11 };
+    cell.border = { bottom:{ style:'thin', color:{argb:'FF2A2D3E'} } };
+  });
+  ws.getRow(1).height = 22;
+  items.forEach(item => {
+    const { _id, _confirmed, ...rest } = item;
+    const row = ws.addRow({ ...rest, '状态 Status': _confirmed ? '已确认' : '待确认' });
+    row.height = 20;
+    const bg = _confirmed ? 'FFC6EFCE' : 'FFFFF2CC';
+    const fg = _confirmed ? 'FF276221' : 'FF7D6608';
+    for (let c = 1; c <= exportCols.length; c++) {
+      const cell = row.getCell(c);
+      cell.fill = { type:'pattern', pattern:'solid', fgColor:{argb:bg} };
+      cell.font = { color:{argb:fg}, size:10 };
+      cell.border = { bottom:{ style:'thin', color:{argb:'FFE0E0E0'} } };
+    }
+    row.getCell(exportCols.indexOf('状态 Status')+1).font = { bold:_confirmed, color:{argb:fg}, size:10 };
+  });
+  ws.views = [{ state:'frozen', ySplit:1 }];
+  const buf  = await wb.xlsx.writeBuffer();
+  const blob = new Blob([buf], { type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href = url; a.download = 'scan_result_' + new Date().toISOString().slice(0,10) + '.xlsx';
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  const conf = items.filter(i=>i._confirmed).length;
+  showToast('✓ Exported! ' + conf + '/' + items.length, 'ok');
+  speak('exported');
+}
+
+// ── Speech ─────────────────────────────────────────────
+const PHRASES = {
+  en: { confirmed:'Confirmed', duplicate:'Already scanned', notFound:'Not found', allDone:'All done, please export', fileLoaded:'File loaded, ready to scan', reset:'Reset complete', exported:'Export successful', voiceOn:'Voice enabled' },
+  zh: { confirmed:'已确认', duplicate:'重复扫描', notFound:'未找到', allDone:'全部完成，请导出文件', fileLoaded:'文件加载成功', reset:'已重置', exported:'导出成功', voiceOn:'语音已开启' },
+  km: { confirmed:'បានបញ្ជាក់', duplicate:'បានស្កែនរួចហើយ', notFound:'រកមិនឃើញ', allDone:'រួចរាល់ហើយ សូមនាំចេញ', fileLoaded:'ឯកសារបានផ្ទុក', reset:'បានកំណត់ឡើងវិញ', exported:'នាំចេញបានជោគជ័យ', voiceOn:'បើកសំឡេងហើយ' }
+};
+window.speechSynthesis.onvoiceschanged = () => voices = window.speechSynthesis.getVoices();
+voices = window.speechSynthesis.getVoices();
+
+function getActiveLangs() {
+  // Just return whichever single lang is selected
+  return [document.getElementById('langSel')?.value || 'en'];
+}
+
+function speakOne(text, lang) {
+  return new Promise(res => {
+    const u = new SpeechSynthesisUtterance(text);
+
+    if (lang === 'zh') {
+      u.lang = 'zh-CN';
+      const v = voices.find(v => v.lang.startsWith('zh'));
+      if (v) u.voice = v;
+    } else if (lang === 'km') {
+      // Try Khmer voice first, fallback to any available voice
+      const kmVoice = voices.find(v => v.lang.startsWith('km') || v.lang.includes('khm'));
+      if (kmVoice) {
+        u.voice = kmVoice;
+        u.lang = 'km-KH';
+      } else {
+        // No Khmer voice installed — show warning, skip speaking
+        showToast('⚠ No Khmer voice on this device. Install from Windows Settings → Language', 'warn', 5000);
+        return res();
+      }
+      u.rate = 0.9;
+    } else {
+      u.lang = 'en-US';
+      const v = voices.find(v => v.lang.startsWith('en'));
+      if (v) u.voice = v;
+    }
+
+    u.onend = res; u.onerror = res;
+    window.speechSynthesis.speak(u);
+  });
+}
+
+async function speak(key) {
+  if (!voiceOn) return;
+  window.speechSynthesis.cancel();
+  for (const lang of getActiveLangs()) {
+    const t = PHRASES[lang]?.[key]; if (t) await speakOne(t, lang);
+  }
+}
+function toggleVoice() { voiceOn = document.getElementById('voiceCb').checked; if (voiceOn) speak('voiceOn'); }
+function onLangChange() { speak('voiceOn'); }
+
+// ── Toast ──────────────────────────────────────────────
+function showToast(msg, type, dur=2500) {
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.className = 'toast '+type+' show';
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove('show'), dur);
+}
+</script>
+</body>
+</html>

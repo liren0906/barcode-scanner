@@ -1,0 +1,338 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no"/>
+  <title>📱 Phone Scanner</title>
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html5-qrcode/2.3.8/html5-qrcode.min.js"></script>
+  <style>
+    *{box-sizing:border-box;margin:0;padding:0}
+    body{background:#0f1117;color:#e8eaf0;font-family:'Courier New',monospace;min-height:100vh;display:flex;flex-direction:column}
+
+    .header{background:#1a1d27;border-bottom:1px solid #2a2d3e;padding:14px 18px;display:flex;align-items:center;gap:10px}
+    .hicon{width:34px;height:34px;border-radius:8px;background:#00d4aa;display:flex;align-items:center;justify-content:center;font-size:17px;flex-shrink:0}
+    .htitle{font-size:14px;font-weight:700;letter-spacing:1px}
+    .hsub{font-size:10px;color:#6b7080;margin-top:1px}
+    .conn{margin-left:auto;font-size:10px;display:flex;align-items:center;gap:5px}
+    .conn-dot{width:7px;height:7px;border-radius:50%;background:#ff4757}
+    .conn-dot.on{background:#00d4aa;animation:pulse 1.5s infinite}
+    @keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
+
+    .main{flex:1;padding:16px;display:flex;flex-direction:column;gap:14px}
+
+    /* Stats mini */
+    .mini-stats{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px}
+    .mstat{background:#1a1d27;border-radius:8px;padding:10px;text-align:center;border:1px solid #2a2d3e}
+    .mstat-val{font-size:22px;font-weight:700}
+    .mstat-lbl{font-size:9px;color:#6b7080;margin-top:1px}
+    .prog-bg{background:#1a1d27;border-radius:6px;height:6px;overflow:hidden;border:1px solid #2a2d3e}
+    .prog-fill{height:100%;background:#00d4aa;border-radius:6px;transition:width .4s}
+
+    /* Camera */
+    .cam-section{background:#1a1d27;border-radius:14px;border:2px solid #2a2d3e;overflow:hidden}
+    .cam-header{padding:10px 14px;border-bottom:1px solid #2a2d3e;display:flex;align-items:center;justify-content:space-between}
+    .cam-title{font-size:12px;font-weight:700;letter-spacing:1px}
+    .cam-toggle{padding:6px 14px;border-radius:6px;background:#00d4aa;color:#0f1117;border:none;font-size:11px;font-weight:700;cursor:pointer;font-family:inherit}
+    .cam-toggle.stop{background:#ff4757;color:#fff}
+    #reader{width:100%}
+    #reader video{width:100%!important;border-radius:0}
+
+    /* Result */
+    .result-box{background:#1a1d27;border:2px solid #2a2d3e;border-radius:12px;padding:14px 16px;transition:border-color .2s,background .2s;min-height:72px}
+    .rb-hint{font-size:10px;color:#6b7080;margin-bottom:6px;letter-spacing:1px}
+    .rb-code{font-size:18px;color:#3a3d50;font-weight:700;letter-spacing:2px;margin-bottom:4px;word-break:break-all}
+    .rb-status{font-size:12px;color:#6b7080}
+
+    /* Manual input */
+    .manual-section{background:#1a1d27;border-radius:10px;border:1px solid #2a2d3e;padding:12px 14px}
+    .manual-title{font-size:10px;color:#6b7080;letter-spacing:1px;margin-bottom:8px}
+    .manual-row{display:flex;gap:8px}
+    .manual-input{flex:1;padding:10px 12px;border-radius:6px;border:1px solid #2a2d3e;background:#0f1117;color:#00d4aa;font-size:15px;font-family:inherit;outline:none;letter-spacing:2px}
+    .manual-input::placeholder{color:#3a3d50;font-size:12px;letter-spacing:0}
+    .manual-btn{padding:10px 16px;border-radius:6px;background:#00d4aa;color:#0f1117;border:none;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit}
+
+    /* History */
+    .history{background:#1a1d27;border-radius:10px;border:1px solid #2a2d3e;overflow:hidden}
+    .hist-title{padding:8px 14px;border-bottom:1px solid #2a2d3e;font-size:10px;color:#6b7080;letter-spacing:1px}
+    .hist-list{max-height:180px;overflow-y:auto}
+    .hist-item{display:flex;justify-content:space-between;align-items:center;padding:8px 14px;border-bottom:1px solid #1e2130;font-size:11px}
+    .hist-item:last-child{border-bottom:none}
+
+    /* Lang + voice */
+    .settings{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+    .lang-sel{padding:6px 10px;border-radius:6px;border:1px solid #2a2d3e;background:#1a1d27;color:#e8eaf0;font-size:11px;font-family:inherit;flex:1}
+    .voice-cb{display:flex;align-items:center;gap:5px;font-size:11px;color:#6b7080;cursor:pointer;white-space:nowrap}
+    .voice-cb input{accent-color:#00d4aa;cursor:pointer}
+
+    .no-data{padding:24px;text-align:center;color:#6b7080;font-size:12px}
+    .toast{position:fixed;bottom:16px;left:50%;transform:translateX(-50%);padding:10px 20px;border-radius:8px;font-size:12px;font-weight:700;z-index:999;opacity:0;transition:opacity .3s;pointer-events:none;white-space:nowrap;max-width:90vw;text-align:center}
+    .toast.show{opacity:1}
+    .toast.ok{background:#00d4aa;color:#0f1117}
+    .toast.err{background:#ff4757;color:#fff}
+    .toast.warn{background:#ffa502;color:#0f1117}
+  </style>
+</head>
+<body>
+
+<div class="header">
+  <div class="hicon">📱</div>
+  <div>
+    <div class="htitle">PHONE SCANNER</div>
+    <div class="hsub">ស្កែនប័ណ្ណ — 扫描条码 — Scan barcode</div>
+  </div>
+  <div class="conn">
+    <div class="conn-dot" id="connDot"></div>
+    <span id="connTxt" style="color:#ff4757">Offline</span>
+  </div>
+</div>
+
+<div class="main">
+
+  <!-- Settings row -->
+  <div class="settings">
+    <label class="voice-cb"><input type="checkbox" id="voiceCb" checked onchange="toggleVoice()"/>🔊 Voice</label>
+    <select id="langSel" class="lang-sel" onchange="onLangChange()">
+      <option value="en">🇺🇸 English</option>
+      <option value="zh">🇨🇳 中文</option>
+      <option value="km" selected>🇰🇭 ខ្មែរ</option>
+    </select>
+  </div>
+
+  <!-- Mini stats -->
+  <div class="mini-stats">
+    <div class="mstat"><div class="mstat-val" id="stTotal" style="color:#e8eaf0">—</div><div class="mstat-lbl">TOTAL</div></div>
+    <div class="mstat"><div class="mstat-val" id="stConf" style="color:#00d4aa">—</div><div class="mstat-lbl">已确认</div></div>
+    <div class="mstat"><div class="mstat-val" id="stPend" style="color:#ffa502">—</div><div class="mstat-lbl">待扫</div></div>
+  </div>
+  <div class="prog-bg"><div class="prog-fill" id="progFill" style="width:0%"></div></div>
+
+  <!-- Camera -->
+  <div class="cam-section">
+    <div class="cam-header">
+      <span class="cam-title">📷 CAMERA SCANNER</span>
+      <button class="cam-toggle" id="camBtn" onclick="toggleCamera()">▶ START CAMERA</button>
+    </div>
+    <div id="reader"></div>
+  </div>
+
+  <!-- Result -->
+  <div class="result-box" id="resultBox">
+    <div class="rb-hint">LAST SCAN</div>
+    <div class="rb-code" id="rbCode">Waiting...</div>
+    <div class="rb-status" id="rbStatus">Start camera and scan a barcode</div>
+  </div>
+
+  <!-- Manual input (fallback) -->
+  <div class="manual-section">
+    <div class="manual-title">⌨ MANUAL INPUT — type barcode then press Enter</div>
+    <div class="manual-row">
+      <input type="text" id="manualInput" class="manual-input" placeholder="Type barcode..." autocomplete="off"
+        onkeydown="if(event.key==='Enter') sendScan(this.value)"/>
+      <button class="manual-btn" onclick="sendScan(document.getElementById('manualInput').value)">SCAN</button>
+    </div>
+  </div>
+
+  <!-- History -->
+  <div class="history">
+    <div class="hist-title">📋 SCAN HISTORY</div>
+    <div class="hist-list" id="histList"><div class="no-data">No scans yet</div></div>
+  </div>
+
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ── Socket ──────────────────────────────────────────────
+const socket = io();
+let scanHistory = [];
+let voiceOn = true, voices = [], scanning = false, html5QrCode = null;
+let flashTimer, toastTimer;
+
+socket.on('connect', () => {
+  document.getElementById('connDot').classList.add('on');
+  document.getElementById('connTxt').textContent = 'Online';
+  document.getElementById('connTxt').style.color = '#00d4aa';
+});
+socket.on('disconnect', () => {
+  document.getElementById('connDot').classList.remove('on');
+  document.getElementById('connTxt').textContent = 'Offline';
+  document.getElementById('connTxt').style.color = '#ff4757';
+});
+socket.on('state', d => { if (d.items) updateStats(d.items); });
+socket.on('data-loaded', d => { updateStats(d.items); showToast('📊 ' + d.items.length + ' items loaded on computer', 'ok'); });
+socket.on('scan-result', d => showResult(d));
+socket.on('item-confirmed', d => {});
+socket.on('reset-all', () => { showToast('Reset by computer', 'warn'); });
+
+// ── Stats ───────────────────────────────────────────────
+function updateStats(items) {
+  const conf = items.filter(i => i._confirmed).length;
+  const pend = items.length - conf;
+  const pct  = items.length ? (conf / items.length * 100) : 0;
+  document.getElementById('stTotal').textContent = items.length;
+  document.getElementById('stConf').textContent  = conf;
+  document.getElementById('stPend').textContent  = pend;
+  document.getElementById('progFill').style.width = pct + '%';
+}
+
+// ── Camera ──────────────────────────────────────────────
+function toggleCamera() {
+  if (scanning) stopCamera(); else startCamera();
+}
+
+function startCamera() {
+  const btn = document.getElementById('camBtn');
+  html5QrCode = new Html5Qrcode('reader');
+  html5QrCode.start(
+    { facingMode: 'environment' },
+    { fps: 10, qrbox: { width: 260, height: 140 }, aspectRatio: 1.4 },
+    (code) => {
+      sendScan(code);
+      // Brief pause between scans to avoid duplicates
+      html5QrCode.pause();
+      setTimeout(() => { try { html5QrCode.resume(); } catch(e) {} }, 1500);
+    },
+    () => {}
+  ).then(() => {
+    scanning = true;
+    btn.textContent = '⏹ STOP CAMERA';
+    btn.classList.add('stop');
+  }).catch(err => {
+    showToast('Camera error: ' + err, 'err', 4000);
+  });
+}
+
+function stopCamera() {
+  const btn = document.getElementById('camBtn');
+  if (html5QrCode) {
+    html5QrCode.stop().then(() => {
+      scanning = false;
+      btn.textContent = '▶ START CAMERA';
+      btn.classList.remove('stop');
+    });
+  }
+}
+
+// ── Send scan to server ─────────────────────────────────
+function sendScan(code) {
+  code = code?.trim();
+  if (!code) return;
+  document.getElementById('manualInput').value = '';
+  socket.emit('scan', code);
+}
+
+// ── Show result ─────────────────────────────────────────
+function showResult(d) {
+  const box    = document.getElementById('resultBox');
+  const rbCode = document.getElementById('rbCode');
+  const rbStat = document.getElementById('rbStatus');
+
+  rbCode.textContent = d.code;
+
+  if (d.confirmed) {
+    box.style.borderColor = '#00d4aa'; box.style.background = '#00d4aa18';
+    rbCode.style.color = '#00d4aa';
+    rbStat.innerHTML = '<span style="color:#00d4aa;font-size:15px;font-weight:700">✓ បានបញ្ជាក់ — 已确认 — Confirmed!</span>';
+    speak('confirmed');
+    navigator.vibrate?.([100]);
+  } else if (d.duplicate) {
+    box.style.borderColor = '#ffa502'; box.style.background = '#ffa50218';
+    rbCode.style.color = '#ffa502';
+    rbStat.innerHTML = '<span style="color:#ffa502">⚠ បានស្កែនរួចហើយ — 重复 — Already scanned</span>';
+    speak('duplicate');
+    navigator.vibrate?.([50, 50, 50]);
+  } else {
+    box.style.borderColor = '#ff4757'; box.style.background = '#ff475718';
+    rbCode.style.color = '#ff4757';
+    const sug = d.suggestions?.length ? '<br><span style="color:#6b7080;font-size:10px">Similar: ' + d.suggestions.join(', ') + '</span>' : '';
+    rbStat.innerHTML = '<span style="color:#ff4757">✗ រកមិនឃើញ — 未找到 — Not found</span>' + sug;
+    speak('notFound');
+    navigator.vibrate?.([200]);
+  }
+
+  if (flashTimer) clearTimeout(flashTimer);
+  flashTimer = setTimeout(() => {
+    box.style.borderColor = '#2a2d3e';
+    box.style.background = 'transparent';
+  }, 1500);
+
+  // Add to history
+  scanHistory.unshift({ code: d.code, type: d.confirmed ? 'ok' : d.duplicate ? 'warn' : 'err', time: new Date().toLocaleTimeString() });
+  if (scanHistory.length > 50) scanHistory.pop();
+  renderHistory();
+}
+
+function renderHistory() {
+  const list = document.getElementById('histList');
+  if (!scanHistory.length) { list.innerHTML = '<div class="no-data">No scans yet</div>'; return; }
+  const colors = { ok: '#00d4aa', warn: '#ffa502', err: '#ff4757' };
+  const icons  = { ok: '✓', warn: '⚠', err: '✗' };
+  list.innerHTML = scanHistory.map(h =>
+    `<div class="hist-item">
+      <span style="color:${colors[h.type]}">${icons[h.type]} ${h.code}</span>
+      <span style="color:#6b7080">${h.time}</span>
+    </div>`
+  ).join('');
+}
+
+// ── Speech ──────────────────────────────────────────────
+const PHRASES = {
+  en: { confirmed:'Confirmed', duplicate:'Already scanned', notFound:'Not found', voiceOn:'Voice enabled', allDone:'All done' },
+  zh: { confirmed:'已确认', duplicate:'重复扫描', notFound:'未找到', voiceOn:'语音已开启', allDone:'全部完成' },
+  km: { confirmed:'បានបញ្ជាក់', duplicate:'បានស្កែនរួចហើយ', notFound:'រកមិនឃើញ', voiceOn:'បើកសំឡេងហើយ', allDone:'រួចរាល់ហើយ' }
+};
+window.speechSynthesis.onvoiceschanged = () => voices = window.speechSynthesis.getVoices();
+voices = window.speechSynthesis.getVoices();
+
+function getActiveLangs() {
+  return [document.getElementById('langSel')?.value || 'en'];
+}
+
+function speakOne(text, lang) {
+  return new Promise(res => {
+    const u = new SpeechSynthesisUtterance(text);
+    if (lang === 'zh') {
+      u.lang = 'zh-CN';
+      const v = voices.find(v => v.lang.startsWith('zh'));
+      if (v) u.voice = v;
+    } else if (lang === 'km') {
+      const kmVoice = voices.find(v => v.lang.startsWith('km') || v.lang.includes('khm'));
+      if (kmVoice) {
+        u.voice = kmVoice;
+        u.lang = 'km-KH';
+        u.rate = 0.9;
+      } else {
+        showToast('⚠ No Khmer voice. Install from phone Settings → Language', 'warn', 4000);
+        return res();
+      }
+    } else {
+      u.lang = 'en-US';
+      const v = voices.find(v => v.lang.startsWith('en'));
+      if (v) u.voice = v;
+    }
+    u.onend = res; u.onerror = res;
+    window.speechSynthesis.speak(u);
+  });
+}
+async function speak(key) {
+  if (!voiceOn) return;
+  window.speechSynthesis.cancel();
+  for (const lang of getActiveLangs()) {
+    const t = PHRASES[lang]?.[key]; if (t) await speakOne(t, lang);
+  }
+}
+function toggleVoice() { voiceOn = document.getElementById('voiceCb').checked; if (voiceOn) speak('voiceOn'); }
+function onLangChange() { speak('voiceOn'); }
+
+// ── Toast ───────────────────────────────────────────────
+function showToast(msg, type, dur=2500) {
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.className = 'toast '+type+' show';
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove('show'), dur);
+}
+</script>
+</body>
+</html>
