@@ -108,9 +108,9 @@
   <div class="hbtns hidden" id="hbtns">
     <label class="voice-cb"><input type="checkbox" id="voiceCb" checked onchange="toggleVoice()"/>🔊</label>
     <select id="langSel" class="lang-sel" onchange="onLangChange()">
-      <option value="en">🇺🇸 English</option>
+      <option value="en" selected>🇺🇸 English</option>
       <option value="zh">🇨🇳 中文</option>
-      <option value="km" selected>🇰🇭 ខ្មែរ</option>
+      <option value="km">🇰🇭 ខ្មែរ</option>
     </select>
     <label class="btn" style="background:#2a2d3e;color:#e8eaf0;cursor:pointer;">
       📂 Change File
@@ -458,37 +458,45 @@ const PHRASES = {
   zh: { confirmed:'已确认', duplicate:'重复扫描', notFound:'未找到', allDone:'全部完成，请导出文件', fileLoaded:'文件加载成功', reset:'已重置', exported:'导出成功', voiceOn:'语音已开启' },
   km: { confirmed:'បានបញ្ជាក់', duplicate:'បានស្កែនរួចហើយ', notFound:'រកមិនឃើញ', allDone:'រួចរាល់ហើយ សូមនាំចេញ', fileLoaded:'ឯកសារបានផ្ទុក', reset:'បានកំណត់ឡើងវិញ', exported:'នាំចេញបានជោគជ័យ', voiceOn:'បើកសំឡេងហើយ' }
 };
-window.speechSynthesis.onvoiceschanged = () => voices = window.speechSynthesis.getVoices();
-voices = window.speechSynthesis.getVoices();
+window.speechSynthesis.onvoiceschanged = () => {};
+
+function getVoices() { return window.speechSynthesis.getVoices(); }
+
+function findKhmerVoice() {
+  return getVoices().find(v =>
+    v.lang.startsWith('km') ||
+    v.lang.toLowerCase().includes('khm') ||
+    v.name.toLowerCase().includes('khmer') ||
+    v.name.toLowerCase().includes('cambodia')
+  );
+}
 
 function getActiveLangs() {
-  // Just return whichever single lang is selected
   return [document.getElementById('langSel')?.value || 'en'];
 }
 
 function speakOne(text, lang) {
   return new Promise(res => {
     const u = new SpeechSynthesisUtterance(text);
+    const all = getVoices();
 
     if (lang === 'zh') {
       u.lang = 'zh-CN';
-      const v = voices.find(v => v.lang.startsWith('zh'));
+      const v = all.find(v => v.lang.startsWith('zh'));
       if (v) u.voice = v;
     } else if (lang === 'km') {
-      // Try Khmer voice first, fallback to any available voice
-      const kmVoice = voices.find(v => v.lang.startsWith('km') || v.lang.includes('khm'));
-      if (kmVoice) {
-        u.voice = kmVoice;
-        u.lang = 'km-KH';
+      const kv = findKhmerVoice();
+      if (kv) {
+        u.voice = kv;
+        u.lang = kv.lang || 'km-KH';
+        u.rate = 0.85;
       } else {
-        // No Khmer voice installed — show warning, skip speaking
-        showToast('⚠ No Khmer voice on this device. Install from Windows Settings → Language', 'warn', 5000);
+        // No Khmer TTS — silently skip
         return res();
       }
-      u.rate = 0.9;
     } else {
       u.lang = 'en-US';
-      const v = voices.find(v => v.lang.startsWith('en'));
+      const v = all.find(v => v.lang.startsWith('en'));
       if (v) u.voice = v;
     }
 
@@ -504,8 +512,19 @@ async function speak(key) {
     const t = PHRASES[lang]?.[key]; if (t) await speakOne(t, lang);
   }
 }
-function toggleVoice() { voiceOn = document.getElementById('voiceCb').checked; if (voiceOn) speak('voiceOn'); }
-function onLangChange() { speak('voiceOn'); }
+
+function toggleVoice() {
+  voiceOn = document.getElementById('voiceCb').checked;
+  if (voiceOn) speak('voiceOn');
+}
+
+function onLangChange() {
+  const lang = document.getElementById('langSel')?.value;
+  if (lang === 'km' && !findKhmerVoice()) {
+    showToast('⚠ No Khmer TTS voice. Go to Windows Settings → Time & Language → Speech → Add voices → ខ្មែរ', 'warn', 6000);
+  }
+  speak('voiceOn');
+}
 
 // ── Toast ──────────────────────────────────────────────
 function showToast(msg, type, dur=2500) {

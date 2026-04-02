@@ -91,9 +91,9 @@
   <div class="settings">
     <label class="voice-cb"><input type="checkbox" id="voiceCb" checked onchange="toggleVoice()"/>🔊</label>
     <select id="langSel" class="lang-sel" onchange="onLangChange()">
-      <option value="en">🇺🇸 English</option>
+      <option value="en" selected>🇺🇸 English</option>
       <option value="zh">🇨🇳 中文</option>
-      <option value="km" selected>🇰🇭 ខ្មែរ</option>
+      <option value="km">🇰🇭 ខ្មែរ</option>
     </select>
   </div>
 
@@ -302,35 +302,77 @@ const PHRASES = {
   zh: { confirmed:'已确认', duplicate:'重复扫描', notFound:'未找到', voiceOn:'语音已开启', allDone:'全部完成' },
   km: { confirmed:'បានបញ្ជាក់', duplicate:'បានស្កែនរួចហើយ', notFound:'រកមិនឃើញ', voiceOn:'បើកសំឡេងហើយ', allDone:'រួចរាល់ហើយ' }
 };
-window.speechSynthesis.onvoiceschanged = () => voices = window.speechSynthesis.getVoices();
-voices = window.speechSynthesis.getVoices();
+
+// Always fetch fresh voices — fixes async load issue
+function getVoices() {
+  return window.speechSynthesis.getVoices();
+}
+window.speechSynthesis.onvoiceschanged = () => {};
+
+function findKhmerVoice() {
+  const all = getVoices();
+  return all.find(v =>
+    v.lang.startsWith('km') ||
+    v.lang.toLowerCase().includes('khm') ||
+    v.name.toLowerCase().includes('khmer') ||
+    v.name.toLowerCase().includes('cambodia')
+  );
+}
 
 function speakOne(text, lang) {
   return new Promise(res => {
     const u = new SpeechSynthesisUtterance(text);
+    const all = getVoices();
+
     if (lang === 'zh') {
       u.lang = 'zh-CN';
-      const v = voices.find(v => v.lang.startsWith('zh')); if (v) u.voice = v;
+      const v = all.find(v => v.lang.startsWith('zh'));
+      if (v) u.voice = v;
+
     } else if (lang === 'km') {
-      const kv = voices.find(v => v.lang.startsWith('km') || v.lang.includes('khm'));
-      if (kv) { u.voice = kv; u.lang = 'km-KH'; u.rate = 0.9; }
-      else { showToast('⚠ No Khmer voice on this device', 'warn', 3000); return res(); }
+      const kv = findKhmerVoice();
+      if (kv) {
+        u.voice = kv;
+        u.lang = kv.lang || 'km-KH';
+        u.rate = 0.85;
+      } else {
+        // No Khmer TTS voice — silently skip, no toast spam
+        return res();
+      }
+
     } else {
       u.lang = 'en-US';
-      const v = voices.find(v => v.lang.startsWith('en')); if (v) u.voice = v;
+      const v = all.find(v => v.lang.startsWith('en'));
+      if (v) u.voice = v;
     }
-    u.onend = res; u.onerror = res;
+
+    u.onend = res;
+    u.onerror = res;
     window.speechSynthesis.speak(u);
   });
 }
+
 async function speak(key) {
   if (!voiceOn) return;
   window.speechSynthesis.cancel();
   const lang = document.getElementById('langSel')?.value || 'en';
-  const t = PHRASES[lang]?.[key]; if (t) await speakOne(t, lang);
+  const t = PHRASES[lang]?.[key];
+  if (t) await speakOne(t, lang);
 }
-function toggleVoice() { voiceOn = document.getElementById('voiceCb').checked; if (voiceOn) speak('voiceOn'); }
-function onLangChange() { speak('voiceOn'); }
+
+function toggleVoice() {
+  voiceOn = document.getElementById('voiceCb').checked;
+  if (voiceOn) speak('voiceOn');
+}
+
+function onLangChange() {
+  const lang = document.getElementById('langSel')?.value;
+  if (lang === 'km') {
+    const kv = findKhmerVoice();
+    if (!kv) showToast('⚠ No Khmer TTS voice found. Go to Windows Settings → Time & Language → Speech → Add voices → ខ្មែរ', 'warn', 6000);
+  }
+  speak('voiceOn');
+}
 
 function showToast(msg, type, dur=2500) {
   const t = document.getElementById('toast');

@@ -10,29 +10,27 @@ const server = http.createServer(app);
 const io     = new Server(server);
 const PORT   = process.env.PORT || 3000;
 
-// ── In-memory state ───────────────────────────────────
 let items = [], columns = [], barcodeCol = '';
 
-// ── Static files ──────────────────────────────────────
 app.use(express.static(path.join(__dirname, 'public')));
 app.use(express.json());
 
-// ── Routes ────────────────────────────────────────────
 app.get('/',        (req, res) => res.sendFile(path.join(__dirname, 'public', 'index.html')));
 app.get('/scanner', (req, res) => res.sendFile(path.join(__dirname, 'public', 'scanner.html')));
 app.get('/state',   (req, res) => res.json({ items, columns, barcodeCol }));
 
-// Upload Excel
 const upload = multer({ storage: multer.memoryStorage() });
 app.post('/upload', upload.single('file'), (req, res) => {
   try {
     const wb   = XLSX.read(req.file.buffer, { type: 'buffer' });
     const ws   = wb.Sheets[wb.SheetNames[0]];
-    const data = XLSX.utils.sheet_to_json(ws, { defval: '' });
+    // ✅ FIX: raw:false forces ALL values to string — prevents number/string mismatch
+    const data = XLSX.utils.sheet_to_json(ws, { defval: '', raw: false });
     if (!data.length) return res.status(400).json({ error: 'Excel is empty' });
 
     columns    = Object.keys(data[0]);
-    const auto = columns.find(c => /barcode|条码|货号|tracking|code|sku|scan|单号|运单/i.test(c));
+    // ✅ FIX: better auto-detect for 包裹单号 and similar Chinese column names
+    const auto = columns.find(c => /barcode|条码|货号|tracking|单号|运单|包裹|code|sku|scan/i.test(c));
     barcodeCol = auto || columns[0];
     items      = data.map((row, i) => ({ ...row, _id: i, _confirmed: false }));
 
@@ -43,30 +41,26 @@ app.post('/upload', upload.single('file'), (req, res) => {
   }
 });
 
-// Change barcode column
 app.post('/set-col', (req, res) => {
   const { col } = req.body;
   if (columns.includes(col)) {
     barcodeCol = col;
-    io.emit('col-changed', { barcodeCol });
+    // ✅ FIX: broadcast full updated state so all devices re-render correctly
+    io.emit('col-changed', { barcodeCol, items });
     res.json({ ok: true });
   } else {
     res.status(400).json({ error: 'Column not found' });
   }
 });
 
-// Reset
 app.post('/reset', (req, res) => {
   items = items.map(i => ({ ...i, _confirmed: false }));
   io.emit('reset-all');
   res.json({ ok: true });
 });
 
-// ── Socket.io ─────────────────────────────────────────
 io.on('connection', (socket) => {
-  // Send current state to new device
   socket.emit('state', { items, columns, barcodeCol });
-
   socket.on('scan', (code) => {
     const result = processCode(code);
     io.emit('scan-result', { code, ...result });
@@ -74,14 +68,17 @@ io.on('connection', (socket) => {
   });
 });
 
-// ── Smart matching ────────────────────────────────────
+// ✅ FIX: normalize strips spaces, dashes, dots AND converts to string first
 function normalize(str) {
-  return String(str).replace(/[\s\-\.]/g, '').toUpperCase();
+  return String(str).replace(/[\s\-\.]/g, '').toUpperCase().trim();
 }
 
 function processCode(code) {
   const normCode = normalize(code);
-  let idx = items.findIndex(i => String(i[barcodeCol]).trim() === code.trim());
+
+  // 1. Exact string match
+  let idx = items.findIndex(i => String(i[barcodeCol]).trim() === String(code).trim());
+  // 2. Normalized match
   if (idx === -1) idx = items.findIndex(i => normalize(i[barcodeCol]) === normCode);
 
   if (idx === -1) {
