@@ -429,11 +429,11 @@ async function exportExcel() {
     const { _id, _confirmed, ...rest } = item;
     const row = ws.addRow({ ...rest, '状态 Status': _confirmed ? '已确认' : '待确认' });
     row.height = 20;
-    const bg = _confirmed ? 'FFC6EFCE' : 'FFFFF2CC';
-    const fg = _confirmed ? 'FF276221' : 'FF7D6608';
+    const bg = _confirmed ? 'FFC6EFCE' : 'FFFFFFFF';
+    const fg = _confirmed ? 'FF276221' : 'FF000000';
     for (let c = 1; c <= exportCols.length; c++) {
       const cell = row.getCell(c);
-      cell.fill = { type:'pattern', pattern:'solid', fgColor:{argb:bg} };
+      if (_confirmed) { cell.fill = { type:'pattern', pattern:'solid', fgColor:{argb:bg} }; } else { cell.fill = { type:'pattern', pattern:'none' }; }
       cell.font = { color:{argb:fg}, size:10 };
       cell.border = { bottom:{ style:'thin', color:{argb:'FFE0E0E0'} } };
     }
