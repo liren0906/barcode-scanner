@@ -157,6 +157,7 @@ const socket = io();
 let items = [], barcodeCol = '', columns = [];
 let voiceOn = true, voices = [], scanning = false, html5QrCode = null;
 let filter = 'all', flashTimer, toastTimer, scanDebounce;
+let myLastScan = null; // track scans sent by THIS device
 
 socket.on('connect', () => {
   document.getElementById('connDot').classList.add('on');
@@ -234,6 +235,7 @@ function autoScan() {
 function sendScan(code) {
   code = code?.trim(); if (!code) return;
   document.getElementById('manualInput').value = '';
+  myLastScan = code; // remember this device sent it
   socket.emit('scan', code);
 }
 
@@ -242,22 +244,27 @@ function showResult(d) {
   const rbCode = document.getElementById('rbCode');
   const rbStat = document.getElementById('rbStatus');
   rbCode.textContent = d.code;
+
+  // Only speak + vibrate if THIS phone sent this scan
+  const isMyScan = myLastScan === d.code;
+  if (isMyScan) myLastScan = null;
+
   if (d.confirmed) {
     box.style.borderColor = '#00d4aa'; box.style.background = '#00d4aa18';
     rbCode.style.color = '#00d4aa';
     rbStat.innerHTML = '<span style="color:#00d4aa;font-size:14px;font-weight:700">✓ បានបញ្ជាក់ — 已确认 — Confirmed!</span>';
-    speak('confirmed'); navigator.vibrate?.([100]);
+    if (isMyScan) { speak('confirmed'); navigator.vibrate?.([100]); }
   } else if (d.duplicate) {
     box.style.borderColor = '#ffa502'; box.style.background = '#ffa50218';
     rbCode.style.color = '#ffa502';
     rbStat.innerHTML = '<span style="color:#ffa502">⚠ Already scanned — 重复扫描</span>';
-    speak('duplicate'); navigator.vibrate?.([50,50,50]);
+    if (isMyScan) { speak('duplicate'); navigator.vibrate?.([50,50,50]); }
   } else {
     box.style.borderColor = '#ff4757'; box.style.background = '#ff475718';
     rbCode.style.color = '#ff4757';
     const sug = d.suggestions?.length ? '<br><span style="color:#6b7080;font-size:10px">Similar: ' + d.suggestions.join(', ') + '</span>' : '';
     rbStat.innerHTML = '<span style="color:#ff4757">✗ Not found — 未找到</span>' + sug;
-    speak('notFound'); navigator.vibrate?.([200]);
+    if (isMyScan) { speak('notFound'); navigator.vibrate?.([200]); }
   }
   if (flashTimer) clearTimeout(flashTimer);
   flashTimer = setTimeout(() => { box.style.borderColor = '#2a2d3e'; box.style.background = 'transparent'; }, 1500);
