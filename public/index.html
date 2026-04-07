@@ -233,7 +233,7 @@ const socket = io();
 let items = [], columns = [], barcodeCol = '';
 let filter = 'all', voices = [], voiceOn = true;
 let flashTimer, toastTimer;
-let myLastScan = null; // track scans sent by THIS computer
+let myLastScan = null, justScanned = false; // track scans sent by THIS computer
 
 // ── QR Code (using free API) ───────────────────────────
 fetch('/state').then(r => r.json()).then(() => {
@@ -317,7 +317,8 @@ function sendManual() {
   if (!code) return;
   inp.value = '';
   document.getElementById('scanCountdown').textContent = '';
-  myLastScan = code; // track this computer sent it
+  myLastScan = code;
+  justScanned = true;
   socket.emit('scan', code);
   inp.focus();
 }
@@ -352,7 +353,8 @@ function handleScanResult(d) {
   code.textContent = d.code;
 
   // Only speak if THIS computer sent the scan
-  const isMyScan = d.fromSocketId === socket.id;
+  const isMyScan = justScanned;
+  justScanned = false;
 
   if (d.confirmed) {
     ls.style.borderColor = '#00d4aa'; ls.style.background = '#00d4aa18';

@@ -184,7 +184,7 @@ const socket = io();
 let items = [], barcodeCol = '', columns = [];
 let voiceOn = true, voices = [], scanning = false, html5QrCode = null;
 let filter = 'all', flashTimer, toastTimer, scanDebounce;
-let myLastScan = null; // track scans sent by THIS device
+let myLastScan = null, justScanned = false;
 
 socket.on('connect', () => {
   document.getElementById('connDot').classList.add('on');
@@ -262,7 +262,7 @@ function autoScan() {
 function sendScan(code) {
   code = code?.trim(); if (!code) return;
   document.getElementById('manualInput').value = '';
-  myLastScan = code; // remember this device sent it
+  justScanned = true;
   socket.emit('scan', code);
 }
 
@@ -273,7 +273,8 @@ function showResult(d) {
   rbCode.textContent = d.code;
 
   // Only speak + vibrate if THIS phone sent this scan
-  const isMyScan = d.fromSocketId === socket.id;
+  const isMyScan = justScanned;
+  justScanned = false;
 
   if (d.confirmed) {
     box.style.borderColor = '#00d4aa'; box.style.background = '#00d4aa18';
