@@ -352,8 +352,7 @@ function handleScanResult(d) {
   code.textContent = d.code;
 
   // Only speak if THIS computer sent the scan
-  const isMyScan = myLastScan === d.code;
-  if (isMyScan) myLastScan = null;
+  const isMyScan = d.fromSocketId === socket.id;
 
   if (d.confirmed) {
     ls.style.borderColor = '#00d4aa'; ls.style.background = '#00d4aa18';

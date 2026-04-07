@@ -246,8 +246,7 @@ function showResult(d) {
   rbCode.textContent = d.code;
 
   // Only speak + vibrate if THIS phone sent this scan
-  const isMyScan = myLastScan === d.code;
-  if (isMyScan) myLastScan = null;
+  const isMyScan = d.fromSocketId === socket.id;
 
   if (d.confirmed) {
     box.style.borderColor = '#00d4aa'; box.style.background = '#00d4aa18';
