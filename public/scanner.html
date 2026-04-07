@@ -376,15 +376,18 @@ function speakOne(text, lang) {
       if (v) u.voice = v;
 
     } else if (lang === 'km') {
-      const kv = findKhmerVoice();
+      const kv = all.find(v =>
+        v.lang.startsWith('km') ||
+        v.lang.toLowerCase().includes('khm') ||
+        v.name.toLowerCase().includes('khmer') ||
+        v.name.toLowerCase().includes('cambodia')
+      );
       if (kv) {
         u.voice = kv;
         u.lang = kv.lang || 'km-KH';
         u.rate = 0.85;
-      } else {
-        // No Khmer TTS voice — silently skip, no toast spam
-        return res();
       }
+      // No Khmer voice? just speak with default voice (no skip, no toast)
 
     } else {
       u.lang = 'en-US';
@@ -412,11 +415,6 @@ function toggleVoice() {
 }
 
 function onLangChange() {
-  const lang = document.getElementById('langSel')?.value;
-  if (lang === 'km') {
-    const kv = findKhmerVoice();
-    if (!kv) showToast('⚠ No Khmer TTS voice found. Go to Windows Settings → Time & Language → Speech → Add voices → ខ្មែរ', 'warn', 6000);
-  }
   speak('voiceOn');
 }
 
