@@ -305,6 +305,7 @@ function sendManual() {
 // ── Upload ──────────────────────────────────────────────
 async function uploadFile(e) {
   const file = e.target.files[0]; if (!file) return;
+  e.target.value = ''; // reset so same filename can be re-uploaded
   const fd = new FormData(); fd.append('file', file);
   const res = await fetch('/upload', { method: 'POST', body: fd });
   const d = await res.json();
