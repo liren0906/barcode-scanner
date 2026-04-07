@@ -557,28 +557,28 @@ function showToast(msg, type, dur=2500) {
 
 <script>
 let modalItemId = null;
+let modalQueue = [];
 
-// Skip columns that are internal or the barcode itself
 const SKIP_COLS = new Set(['_id','_confirmed']);
 
 function openEditModal(item) {
+  if (modalItemId !== null) { modalQueue.push(item); return; }
+  showModal(item);
+}
+
+function showModal(item) {
   modalItemId = item._id;
   document.getElementById('modalBc').textContent = '📦 ' + item[barcodeCol];
-
   const fieldsEl = document.getElementById('modalFields');
   fieldsEl.innerHTML = '';
-
   columns.forEach(col => {
-    if (col === barcodeCol) return; // barcode shown in title, skip
+    if (col === barcodeCol) return;
     const div = document.createElement('div');
     div.className = 'modal-field';
     div.innerHTML = `<label>${col}</label><input id="mf_${CSS.escape(col)}" type="text" value="${String(item[col] || '')}" placeholder="—"/>`;
     fieldsEl.appendChild(div);
   });
-
   document.getElementById('editModal').classList.add('show');
-
-  // Focus first input
   const first = fieldsEl.querySelector('input');
   if (first) setTimeout(() => first.focus(), 100);
 }
@@ -586,6 +586,10 @@ function openEditModal(item) {
 function closeModal() {
   document.getElementById('editModal').classList.remove('show');
   modalItemId = null;
+  if (modalQueue.length > 0) {
+    const next = modalQueue.shift();
+    setTimeout(() => showModal(next), 200);
+  }
 }
 
 async function acceptModal() {

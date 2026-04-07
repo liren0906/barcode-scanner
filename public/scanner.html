@@ -388,8 +388,18 @@ socket.on('item-updated', d => {
 });
 
 let modalItemId = null;
+let modalQueue = [];
 
 function openEditModal(item) {
+  // If modal already open, queue the next one
+  if (modalItemId !== null) {
+    modalQueue.push(item);
+    return;
+  }
+  showModal(item);
+}
+
+function showModal(item) {
   modalItemId = item._id;
   document.getElementById('modalBc').textContent = '📦 ' + item[barcodeCol];
   const fieldsEl = document.getElementById('modalFields');
@@ -407,6 +417,11 @@ function openEditModal(item) {
 function closeModal() {
   document.getElementById('editModal').classList.remove('show');
   modalItemId = null;
+  // Show next queued modal if any
+  if (modalQueue.length > 0) {
+    const next = modalQueue.shift();
+    setTimeout(() => showModal(next), 200);
+  }
 }
 
 async function acceptModal() {
