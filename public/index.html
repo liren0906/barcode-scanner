@@ -360,9 +360,11 @@ function handleScanResult(d) {
     code.style.color = '#00d4aa';
     stat.innerHTML = `<span style="color:#00d4aa">✓ 已确认 — Confirmed — បានបញ្ជាក់</span>`;
     if (isMyScan) speak('confirmed');
-    // Open edit modal for confirmed item
-    const confirmedItem = items.find(i => i._id === d.id);
-    if (confirmedItem) openEditModal(confirmedItem);
+    // Open edit modal only on the device that scanned
+    if (isMyScan) {
+      const confirmedItem = items.find(i => i._id === d.id);
+      if (confirmedItem) openEditModal(confirmedItem);
+    }
   } else if (d.duplicate) {
     ls.style.borderColor = '#ffa502'; ls.style.background = '#ffa50218';
     code.style.color = '#ffa502';
