@@ -353,7 +353,7 @@ function handleScanResult(d) {
   code.textContent = d.code;
 
   // Only speak if THIS computer sent the scan
-  const isMyScan = justScanned;
+  const isMyScan = d.isMyScan;
   justScanned = false;
 
   if (d.confirmed) {

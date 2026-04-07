@@ -72,7 +72,8 @@ io.on('connection', (socket) => {
   socket.emit('state', { items, columns, barcodeCol });
   socket.on('scan', (code) => {
     const result = processCode(code);
-    io.emit('scan-result', { code, ...result, fromSocketId: socket.id });
+    socket.emit('scan-result', { code, ...result, isMyScan: true });
+    socket.broadcast.emit('scan-result', { code, ...result, isMyScan: false });
     if (result.confirmed) io.emit('item-confirmed', { id: result.id, code });
   });
 });
