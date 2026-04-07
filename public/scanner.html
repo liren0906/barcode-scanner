@@ -329,12 +329,18 @@ function renderList(flashId) {
   }).join('');
 }
 
-// Speech — unlock on first tap (mobile fix)
-document.addEventListener('touchstart', function unlock() {
-  const u = new SpeechSynthesisUtterance('');
+// Speech — unlock on first interaction (mobile fix)
+let speechUnlocked = false;
+function unlockSpeech() {
+  if (speechUnlocked) return;
+  speechUnlocked = true;
+  window.speechSynthesis.cancel();
+  const u = new SpeechSynthesisUtterance(' ');
+  u.volume = 0;
   window.speechSynthesis.speak(u);
-  document.removeEventListener('touchstart', unlock);
-}, { once: true });
+}
+document.addEventListener('touchstart', unlockSpeech, { once: true });
+document.addEventListener('click', unlockSpeech, { once: true });
 
 const PHRASES = {
   en: { confirmed:'Confirmed', duplicate:'Already scanned', notFound:'Not found', voiceOn:'Voice enabled', allDone:'All done' },
@@ -403,6 +409,7 @@ function speakOne(text, lang) {
 
 async function speak(key) {
   if (!voiceOn) return;
+  unlockSpeech();
   window.speechSynthesis.cancel();
   const lang = document.getElementById('langSel')?.value || 'en';
   const t = PHRASES[lang]?.[key];
