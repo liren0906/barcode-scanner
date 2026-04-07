@@ -346,7 +346,14 @@ const PHRASES = {
 function getVoices() {
   return window.speechSynthesis.getVoices();
 }
-window.speechSynthesis.onvoiceschanged = () => {};
+
+function waitForVoices() {
+  return new Promise(resolve => {
+    const v = window.speechSynthesis.getVoices();
+    if (v.length) return resolve(v);
+    window.speechSynthesis.onvoiceschanged = () => resolve(window.speechSynthesis.getVoices());
+  });
+}
 
 function findKhmerVoice() {
   const all = getVoices();
@@ -359,9 +366,9 @@ function findKhmerVoice() {
 }
 
 function speakOne(text, lang) {
-  return new Promise(res => {
+  return new Promise(async res => {
+    const all = await waitForVoices();
     const u = new SpeechSynthesisUtterance(text);
-    const all = getVoices();
 
     if (lang === 'zh') {
       u.lang = 'zh-CN';
