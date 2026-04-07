@@ -59,6 +59,15 @@ app.post('/reset', (req, res) => {
   res.json({ ok: true });
 });
 
+app.post('/update-item', (req, res) => {
+  const { id, updates } = req.body;
+  const idx = items.findIndex(i => i._id === id);
+  if (idx === -1) return res.status(404).json({ error: 'Item not found' });
+  items[idx] = { ...items[idx], ...updates };
+  io.emit('item-updated', { id, updates });
+  res.json({ ok: true });
+});
+
 io.on('connection', (socket) => {
   socket.emit('state', { items, columns, barcodeCol });
   socket.on('scan', (code) => {

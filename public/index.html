@@ -93,6 +93,22 @@
     .toast.err{background:#ff4757;color:#fff}
     .toast.warn{background:#ffa502;color:#0f1117}
     .hidden{display:none}
+
+    /* Edit Modal */
+    .modal-overlay{position:fixed;inset:0;background:#000000bb;z-index:500;display:flex;align-items:center;justify-content:center;padding:16px;opacity:0;pointer-events:none;transition:opacity .2s}
+    .modal-overlay.show{opacity:1;pointer-events:all}
+    .modal{background:#1a1d27;border:1px solid #2a2d3e;border-radius:14px;width:100%;max-width:480px;max-height:90vh;overflow-y:auto;padding:20px}
+    .modal-title{font-size:13px;font-weight:700;letter-spacing:1px;margin-bottom:4px;color:#00d4aa}
+    .modal-bc{font-size:11px;color:#6b7080;margin-bottom:16px;word-break:break-all}
+    .modal-fields{display:flex;flex-direction:column;gap:10px;margin-bottom:18px}
+    .modal-field label{display:block;font-size:10px;color:#6b7080;letter-spacing:1px;margin-bottom:4px;text-transform:uppercase}
+    .modal-field input{width:100%;padding:9px 12px;border-radius:7px;border:1px solid #2a2d3e;background:#0f1117;color:#e8eaf0;font-family:inherit;font-size:13px;outline:none;transition:border-color .2s}
+    .modal-field input:focus{border-color:#00d4aa}
+    .modal-actions{display:flex;gap:10px}
+    .modal-accept{flex:1;padding:11px;border-radius:8px;background:#00d4aa;color:#0f1117;font-family:inherit;font-size:13px;font-weight:700;border:none;cursor:pointer;letter-spacing:1px}
+    .modal-accept:hover{opacity:.85}
+    .modal-skip{padding:11px 18px;border-radius:8px;border:1px solid #2a2d3e;background:transparent;color:#6b7080;font-family:inherit;font-size:12px;cursor:pointer}
+    .modal-skip:hover{border-color:#6b7080;color:#e8eaf0}
   </style>
 </head>
 <body>
@@ -250,6 +266,10 @@ socket.on('reset-all', () => {
   updateStats(); renderTable();
   showToast('Reset!', 'warn');
 });
+socket.on('item-updated', d => {
+  const idx = items.findIndex(i => i._id === d.id);
+  if (idx !== -1) { items[idx] = { ...items[idx], ...d.updates }; renderTable(); }
+});
 socket.on('col-changed', d => {
   barcodeCol = d.barcodeCol;
   document.getElementById('colSel').value = barcodeCol;
@@ -340,6 +360,9 @@ function handleScanResult(d) {
     code.style.color = '#00d4aa';
     stat.innerHTML = `<span style="color:#00d4aa">✓ 已确认 — Confirmed — បានបញ្ជាក់</span>`;
     if (isMyScan) speak('confirmed');
+    // Open edit modal for confirmed item
+    const confirmedItem = items.find(i => i._id === d.id);
+    if (confirmedItem) openEditModal(confirmedItem);
   } else if (d.duplicate) {
     ls.style.borderColor = '#ffa502'; ls.style.background = '#ffa50218';
     code.style.color = '#ffa502';
@@ -538,6 +561,86 @@ function showToast(msg, type, dur=2500) {
   clearTimeout(toastTimer);
   toastTimer = setTimeout(() => t.classList.remove('show'), dur);
 }
+</script>
+<!-- Edit Modal -->
+<div class="modal-overlay" id="editModal">
+  <div class="modal">
+    <div class="modal-title">✓ SCANNED — EDIT DETAILS</div>
+    <div class="modal-bc" id="modalBc"></div>
+    <div class="modal-fields" id="modalFields"></div>
+    <div class="modal-actions">
+      <button class="modal-skip" onclick="closeModal()">跳过 SKIP</button>
+      <button class="modal-accept" onclick="acceptModal()">✓ 接受 ACCEPT</button>
+    </div>
+  </div>
+</div>
+
+<script>
+let modalItemId = null;
+
+// Skip columns that are internal or the barcode itself
+const SKIP_COLS = new Set(['_id','_confirmed']);
+
+function openEditModal(item) {
+  modalItemId = item._id;
+  document.getElementById('modalBc').textContent = '📦 ' + item[barcodeCol];
+
+  const fieldsEl = document.getElementById('modalFields');
+  fieldsEl.innerHTML = '';
+
+  columns.forEach(col => {
+    if (col === barcodeCol) return; // barcode shown in title, skip
+    const div = document.createElement('div');
+    div.className = 'modal-field';
+    div.innerHTML = `<label>${col}</label><input id="mf_${CSS.escape(col)}" type="text" value="${String(item[col] || '')}" placeholder="—"/>`;
+    fieldsEl.appendChild(div);
+  });
+
+  document.getElementById('editModal').classList.add('show');
+
+  // Focus first input
+  const first = fieldsEl.querySelector('input');
+  if (first) setTimeout(() => first.focus(), 100);
+}
+
+function closeModal() {
+  document.getElementById('editModal').classList.remove('show');
+  modalItemId = null;
+}
+
+async function acceptModal() {
+  if (modalItemId === null) return;
+
+  // Collect edited values
+  const updates = {};
+  columns.forEach(col => {
+    if (col === barcodeCol) return;
+    const el = document.getElementById('mf_' + CSS.escape(col));
+    if (el) updates[col] = el.value;
+  });
+
+  // Update local items array
+  const idx = items.findIndex(i => i._id === modalItemId);
+  if (idx !== -1) {
+    items[idx] = { ...items[idx], ...updates };
+    renderTable();
+  }
+
+  // Send to server
+  await fetch('/update-item', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ id: modalItemId, updates })
+  });
+
+  closeModal();
+  showToast('✓ Saved!', 'ok');
+}
+
+// Close on overlay click
+document.getElementById('editModal').addEventListener('click', function(e) {
+  if (e.target === this) closeModal();
+});
 </script>
 </body>
 </html>
