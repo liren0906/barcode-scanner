@@ -486,62 +486,43 @@ async function exportExcel() {
 // ── Speech ─────────────────────────────────────────────
 const PHRASES = {
   en: { confirmed:'Confirmed', duplicate:'Already scanned', notFound:'Not found', allDone:'All done, please export', fileLoaded:'File loaded, ready to scan', reset:'Reset complete', exported:'Export successful', voiceOn:'Voice enabled' },
-  zh: { confirmed:'已确认', duplicate:'重复扫描', notFound:'未找到', allDone:'全部完成，请导出文件', fileLoaded:'文件加载成功', reset:'已重置', exported:'导出成功', voiceOn:'语音已开启' },
-  km: { confirmed:'បានបញ្ជាក់', duplicate:'បានស្កែនរួចហើយ', notFound:'រកមិនឃើញ', allDone:'រួចរាល់ហើយ សូមនាំចេញ', fileLoaded:'ឯកសារបានផ្ទុក', reset:'បានកំណត់ឡើងវិញ', exported:'នាំចេញបានជោគជ័យ', voiceOn:'បើកសំឡេងហើយ' }
+  zh: { confirmed:'已确认', duplicate:'重复扫描', notFound:'未找到', allDone:'全部完成，请导出文件', fileLoaded:'文件加载成功', reset:'已重置', exported:'导出成功', voiceOn:'语音已开启' }
 };
-window.speechSynthesis.onvoiceschanged = () => {};
+
+const KM_AUDIO = {
+  confirmed: new Audio('/audio/confirmed.mp3'),
+  duplicate:  new Audio('/audio/duplicate.mp3'),
+  notFound:   new Audio('/audio/notfound.mp3'),
+  allDone: null, fileLoaded: null, reset: null, exported: null, voiceOn: null
+};
 
 function getVoices() { return window.speechSynthesis.getVoices(); }
 
-function findKhmerVoice() {
-  return getVoices().find(v =>
-    v.lang.startsWith('km') ||
-    v.lang.toLowerCase().includes('khm') ||
-    v.name.toLowerCase().includes('khmer') ||
-    v.name.toLowerCase().includes('cambodia')
-  );
-}
-
-function getActiveLangs() {
-  return [document.getElementById('langSel')?.value || 'en'];
-}
-
-function speakOne(text, lang) {
-  return new Promise(res => {
-    const u = new SpeechSynthesisUtterance(text);
-    const all = getVoices();
-
-    if (lang === 'zh') {
-      u.lang = 'zh-CN';
-      const v = all.find(v => v.lang.startsWith('zh'));
-      if (v) u.voice = v;
-    } else if (lang === 'km') {
-      const kv = findKhmerVoice();
-      if (kv) {
-        u.voice = kv;
-        u.lang = kv.lang || 'km-KH';
-        u.rate = 0.85;
-      } else {
-        // No Khmer TTS — silently skip
-        return res();
-      }
-    } else {
-      u.lang = 'en-US';
-      const v = all.find(v => v.lang.startsWith('en'));
-      if (v) u.voice = v;
-    }
-
-    u.onend = res; u.onerror = res;
-    window.speechSynthesis.speak(u);
-  });
-}
-
 async function speak(key) {
   if (!voiceOn) return;
-  window.speechSynthesis.cancel();
-  for (const lang of getActiveLangs()) {
-    const t = PHRASES[lang]?.[key]; if (t) await speakOne(t, lang);
+  const lang = document.getElementById('langSel')?.value || 'en';
+
+  if (lang === 'km') {
+    const audio = KM_AUDIO[key];
+    if (audio) { audio.currentTime = 0; audio.play(); }
+    return;
   }
+
+  window.speechSynthesis.cancel();
+  const text = PHRASES[lang]?.[key];
+  if (!text) return;
+  const u = new SpeechSynthesisUtterance(text);
+  const all = getVoices();
+  if (lang === 'zh') {
+    u.lang = 'zh-CN';
+    const v = all.find(v => v.lang.startsWith('zh'));
+    if (v) u.voice = v;
+  } else {
+    u.lang = 'en-US';
+    const v = all.find(v => v.lang.startsWith('en'));
+    if (v) u.voice = v;
+  }
+  window.speechSynthesis.speak(u);
 }
 
 function toggleVoice() {
@@ -550,10 +531,6 @@ function toggleVoice() {
 }
 
 function onLangChange() {
-  const lang = document.getElementById('langSel')?.value;
-  if (lang === 'km' && !findKhmerVoice()) {
-    showToast('⚠ No Khmer TTS voice. Go to Windows Settings → Time & Language → Speech → Add voices → ខ្មែរ', 'warn', 6000);
-  }
   speak('voiceOn');
 }
 
