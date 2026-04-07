@@ -341,21 +341,34 @@ function unlockSpeech() {
 document.addEventListener('touchstart', unlockSpeech, { once: true });
 document.addEventListener('click', unlockSpeech, { once: true });
 
-const PHRASES = {
-  en: { confirmed:'Confirmed', duplicate:'Already scanned', notFound:'Not found', voiceOn:'Voice enabled', allDone:'All done' },
-  zh: { confirmed:'已确认', duplicate:'重复扫描', notFound:'未找到', voiceOn:'语音已开启', allDone:'全部完成' },
-  km: { confirmed:'បានបញ្ជាក់', duplicate:'បានស្កែនរួចហើយ', notFound:'រកមិនឃើញ', voiceOn:'បើកសំឡេងហើយ', allDone:'រួចរាល់ហើយ' }
+const KM_AUDIO = {
+  confirmed: new Audio('/audio/confirmed.mp3'),
+  duplicate:  new Audio('/audio/duplicate.mp3'),
+  notFound:   new Audio('/audio/notfound.mp3'),
+  allDone:    null
 };
 
 function speak(key) {
   if (!voiceOn) return;
   const lang = document.getElementById('langSel')?.value || 'en';
+
+  // Khmer → play MP3
+  if (lang === 'km') {
+    const audio = KM_AUDIO[key];
+    if (audio) { audio.currentTime = 0; audio.play(); }
+    return;
+  }
+
+  // English / Chinese → TTS
+  const PHRASES = {
+    en: { confirmed:'Confirmed', duplicate:'Already scanned', notFound:'Not found', voiceOn:'Voice enabled', allDone:'All done' },
+    zh: { confirmed:'已确认', duplicate:'重复扫描', notFound:'未找到', voiceOn:'语音已开启', allDone:'全部完成' }
+  };
   const text = PHRASES[lang]?.[key];
   if (!text) return;
   window.speechSynthesis.cancel();
   const u = new SpeechSynthesisUtterance(text);
   if (lang === 'zh') u.lang = 'zh-CN';
-  else if (lang === 'km') u.lang = 'km-KH';
   else u.lang = 'en-US';
   window.speechSynthesis.speak(u);
 }
